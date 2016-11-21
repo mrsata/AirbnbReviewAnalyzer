@@ -4,9 +4,11 @@ import io
 import pymongo 
 from contextlib import suppress
 
-client = pymongo.MongoClient('localhost', 27017)
-_DEBUG = False
-def send_request(offset, listing_id, limit=50):
+DEBUG = False
+SAMPLE = 7762953 # Chris: 7762953, Gilda: 2056659
+CLIENT = pymongo.MongoClient('localhost', 27017)
+
+def get_reviews(listing_id, offset = 0):
     # Review
     # GET https://api.airbnb.com/v2/reviews
 
@@ -18,16 +20,15 @@ def send_request(offset, listing_id, limit=50):
                 "locale": "en-US",
                 "currency": "USD",
                 "_format": "for_mobile_client",
-                "_limit": str(limit),
+                "_limit": "50",
                 "_offset": str(offset),
                 "_order": "language",
-                #"listing_id": "2056659",
-                "listing_id": str(listing_id),#"7762953",
+                "listing_id": str(listing_id), 
                 "role": "all",
             },
         )
 
-        if _DEBUG:
+        if DEBUG:
             print('Response HTTP Status Code: {status_code}'.format(
                 status_code=response.status_code))
             print('Response HTTP Response Body: {content}'.format(
@@ -38,30 +39,33 @@ def send_request(offset, listing_id, limit=50):
     except requests.exceptions.RequestException:
         print('HTTP Request failed')
 
-def get_all_requests(listing_id):
-    resp = send_request(0, listing_id)
+def get_all_reviews(listing_id):
+    resp = get_reviews(listing_id)
     reviews_count = resp['metadata']['reviews_count']
     reviews = resp['reviews']
     for offset in range(50, reviews_count, 50):
-        new_resp = send_request(offset, listing_id)
+        new_resp = get_reviews(listing_id, offset)
         reviews.extend(new_resp['reviews'])
-    def syncID(d):
-        id_num = d['id']
-        del d['id']
-        d['_id'] = id_num
-        return d
+    def syncID(review):
+        id_num = review['id']
+        del review['id']
+        review['_id'] = id_num
+        return review
     reviews = list(map(syncID,reviews))
     return reviews
 
-def main():
-    resp = get_all_requests(7762953)
-    data = resp
-    db = client.ara
+def insert_reviews(listing_id):
+    data = get_all_reviews(listing_id)
+    db = CLIENT.ara
     collection = db.reviews
     with suppress(Exception):
         collection.insert_many(data, ordered=False)
-    if _DEBUG:
+    if DEBUG:
         with open('data.json', 'w') as f:
            json.dump(data, f, indent = 4, separators = (',', ':'))
+
+def main():
+    insert_reviews(SAMPLE)
+
 if __name__ == '__main__':
     main()
