@@ -2,6 +2,7 @@ import requests
 import json
 import io
 import pymongo 
+import gevent
 from contextlib import suppress
 
 DEBUG = False
@@ -54,7 +55,7 @@ def get_all_listings(location):
     resp = get_listings(location)
     listings_count = resp['metadata']['listings_count']
     listings = list(map(lambda x: x['listing'], resp['search_results']))
-    for offset in range(50, listings_count, 50):
+    def get_listings_with_current_offset(offset):
         new_resp = get_listings(location, offset)
         print(offset)
         try:
@@ -62,6 +63,8 @@ def get_all_listings(location):
         except exceptions.KeyError:
             print('Error offset: ', offset)
         listings.extend(new_listings)
+    threads = [gevent.spawn(task, offset) for offset in range(50, listings_count - 50, 50)]
+    gevent.joinall(threads)
     def syncID(listing):
         id_num = listing['id']
         del listing['id']
@@ -81,7 +84,8 @@ def insert_listings(location):
            json.dump(data, f, indent = 4, separators = (',', ':'))
 
 def main():
-    insert_listings(SAMPLE)
+    import timeit
+    print(timeit.timeit("insert_listings(SAMPLE)"))
 
 if __name__ == '__main__':
     main()
