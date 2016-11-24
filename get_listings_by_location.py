@@ -1,14 +1,18 @@
+import gevent
+import gevent.monkey
+gevent.monkey.patch_all()
 import requests
 import json
 import io
 import pymongo 
-import gevent
 from contextlib import suppress
 
 DEBUG = False
 SAMPLE = 'Hollywood, LA'
 CLIENT = pymongo.MongoClient('localhost', 27017)
+DB = CLIENT.ara
 
+networking_pool = gevent.pool.Pool(size=100)
 def get_listings(location, _offset = 0):
     # Listing
     # GET https://api.airbnb.com/v2/search_results
@@ -32,8 +36,8 @@ def get_listings(location, _offset = 0):
                 # "min_bedrooms": "0",
                 # "min_beds": "1",
                 # "min_num_pic_urls": "10",
-                # "price_max": "210",
-                # "price_min": "40",
+                # "price_max": "50",
+                # "price_min": "10",
                 # "sort": "1",
                 # "user_lat": "37.3398634",
                 # "user_lng": "-122.0455164",
@@ -53,30 +57,37 @@ def get_listings(location, _offset = 0):
 
 def get_all_listings(location):
     resp = get_listings(location)
-    listings_count = resp['metadata']['listings_count']
-    listings = list(map(lambda x: x['listing'], resp['search_results']))
+    metadata = resp['metadata']
+    metadata['location'] = location
+    metadata['_id'] = metadata['geography']['place_id']
+    collection = DB.metadata
+    with suppress(Exception): 
+        collection.insert_one(metadata)
+    listings_count = metadata['listings_count']
+    listings = list(map(lambda x:x['listing'], resp['search_results']))
     def get_listings_with_current_offset(offset):
         new_resp = get_listings(location, offset)
         print(offset)
         try:
-            new_listings = list(map(lambda x: x['listing'], new_resp['search_results']))
+            new_listings = list(map(lambda x: x['listing'], 
+                                    new_resp['search_results']))
         except exceptions.KeyError:
             print('Error offset: ', offset)
         listings.extend(new_listings)
-    threads = [gevent.spawn(task, offset) for offset in range(50, listings_count - 50, 50)]
+    threads = [gevent.spawn(get_listings_with_current_offset, offset)
+               for offset in range(50, listings_count - 50, 50)]
     gevent.joinall(threads)
     def syncID(listing):
-        id_num = listing['id']
+        listing['_id'] = listing['id']
         del listing['id']
-        listing['_id'] = id_num
         return listing
     listings = list(map(syncID,listings))
     return listings
 
 def insert_listings(location):
+    print("--- Start getting listings at %s ---" % location)
     data = get_all_listings(location)
-    db = CLIENT.ara
-    collection = db.listings
+    collection = DB.listings
     with suppress(Exception):
         collection.insert_many(data, ordered=False)
     if DEBUG:
@@ -84,8 +95,10 @@ def insert_listings(location):
            json.dump(data, f, indent = 4, separators = (',', ':'))
 
 def main():
-    import timeit
-    print(timeit.timeit("insert_listings(SAMPLE)"))
+    insert_listings(SAMPLE)
 
 if __name__ == '__main__':
+    import time
+    start_time = time.time()
     main()
+    print("--- %s seconds ---" % (time.time() - start_time))
