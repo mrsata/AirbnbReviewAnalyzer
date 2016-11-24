@@ -1,6 +1,4 @@
 import gevent
-import gevent.monkey
-gevent.monkey.patch_all()
 import requests
 import json
 import io
@@ -9,13 +7,10 @@ from contextlib import suppress
 
 DEBUG = False
 SAMPLE = 7762953 # Chris: 7762953, Gilda: 2056659
-CLIENT = pymongo.MongoClient('localhost', 27017)
-DB = CLIENT.ara
 
 def get_reviews(listing_id, offset = 0):
     # Review
     # GET https://api.airbnb.com/v2/reviews
-
     try:
         response = requests.get(
             url="https://api.airbnb.com/v2/reviews",
@@ -40,8 +35,8 @@ def get_reviews(listing_id, offset = 0):
 
         return response.json()
 
-    except requests.exceptions.RequestException:
-        print('HTTP Request failed')
+    except requests.exceptions.RequestException as e:
+        print('HTTP Request failed: ', e)
 
 def get_all_reviews(listing_id):
     resp = get_reviews(listing_id)
@@ -60,17 +55,19 @@ def get_all_reviews(listing_id):
     reviews = list(map(syncID,reviews))
     return reviews
 
-def insert_reviews(listing_id):
+def insert_reviews(listing_id, db):
     data = get_all_reviews(listing_id)
-    collection = DB.reviews
+    collection = db.reviews
     with suppress(Exception):
-        collection.insert_many(data, ordered=False)
+        collection.insert_many(data, ordered=True)
     if DEBUG:
         with open('data.json', 'w') as f:
            json.dump(data, f, indent = 4, separators = (',', ':'))
 
 def main():
-    insert_reviews(SAMPLE)
+    client = pymongo.MongoClient('localhost', 27017)
+    db = client.ara
+    insert_reviews(SAMPLE, db)
 
 if __name__ == '__main__':
     main()

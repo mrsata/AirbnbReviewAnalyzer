@@ -1,6 +1,4 @@
 import gevent
-import gevent.monkey
-gevent.monkey.patch_all()
 import requests
 import json
 import io
@@ -9,10 +7,7 @@ from contextlib import suppress
 
 DEBUG = False
 SAMPLE = 'Hollywood, LA'
-CLIENT = pymongo.MongoClient('localhost', 27017)
-DB = CLIENT.ara
 
-networking_pool = gevent.pool.Pool(size=100)
 def get_listings(location, _offset = 0):
     # Listing
     # GET https://api.airbnb.com/v2/search_results
@@ -75,7 +70,7 @@ def get_all_listings(location):
             print('Error offset: ', offset)
         listings.extend(new_listings)
     threads = [gevent.spawn(get_listings_with_current_offset, offset)
-               for offset in range(50, listings_count - 50, 50)]
+               for offset in range(50, listings_count -50, 50)]
     gevent.joinall(threads)
     def syncID(listing):
         listing['_id'] = listing['id']
@@ -84,18 +79,23 @@ def get_all_listings(location):
     listings = list(map(syncID,listings))
     return listings
 
-def insert_listings(location):
+def insert_listings(location, db):
+    global DB
+    DB = db
     print("--- Start getting listings at %s ---" % location)
     data = get_all_listings(location)
-    collection = DB.listings
+    collection = db.listings
     with suppress(Exception):
         collection.insert_many(data, ordered=False)
     if DEBUG:
         with open('data.json', 'w') as f:
            json.dump(data, f, indent = 4, separators = (',', ':'))
+    print("--- Finish getting listings at %s ---" % location)
 
 def main():
-    insert_listings(SAMPLE)
+    client = pymongo.MongoClient('localhost', 27017)
+    db = client.ara
+    insert_listings(SAMPLE, db)
 
 if __name__ == '__main__':
     import time

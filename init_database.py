@@ -1,6 +1,6 @@
-import gevent
 import gevent.monkey
 gevent.monkey.patch_all()
+import gevent
 import requests
 import json
 import io
@@ -13,22 +13,25 @@ import get_reviews_by_listing as r
 SAMPLES = ['Hollywood, LA', 'Venice, LA', 'Oakland, SF', 'Manhattan, NYC', 'Brooklyn, NYC']
 CLIENT = pymongo.MongoClient('localhost', 27017)
 DB = CLIENT.ara
-
+networking_pool = gevent.pool.Pool(size=100)
 def init_database():
 
     print("--- Start getting listings ---")
-    listings_threads = [gevent.spawn(l.insert_listings, sample) 
+    listings_threads = [gevent.spawn(l.insert_listings, sample, DB) 
                         for sample in SAMPLES]
     gevent.joinall(listings_threads)
 
     print("--- Get all listings: %s seconds ---" 
           % (time.time() - start_time))
-    listings = DB.listings.find({"reviews_count": {"$gt": 0}})
+    listings_cursor = DB.listings.find({"reviews_count": {"$gt": 0}})
+    listings = [listing for listing in listings_cursor]
+    print("--- listings length %s ---" % str(len(listings)))
+    print("--- reviews length %s ---" % str())
 
     print("--- Start getting reviews ---")
-    reviews_threads = [gevent.spawn(r.insert_reviews, listing['_id']) 
+    reviews_threads = [networking_pool.spawn(r.insert_reviews, listing['_id'], DB) 
                        for listing in listings]
-    gevent.joinall(reviews_threads)
+    networking_pool.join()
     print("--- Get all reviews: %s seconds ---"
           % (time.time() - start_time))
 
