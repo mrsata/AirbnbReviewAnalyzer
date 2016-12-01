@@ -1,8 +1,8 @@
 import gevent
 import requests
+import pymongo 
 import json
 import io
-import pymongo 
 from contextlib import suppress
 
 DEBUG = False
@@ -45,9 +45,8 @@ def get_all_reviews(listing_id):
     def get_reviews_with_current_offset(offset):
         new_resp = get_reviews(listing_id, offset)
         reviews.extend(new_resp['reviews'])
-    threads = [gevent.spawn(get_reviews_with_current_offset, offset)
-               for offset in range(50, reviews_count, 50)]
-    gevent.joinall(threads)
+    for offset in range(50, reviews_count, 50):
+        get_reviews_with_current_offset(offset)
     def syncID(review):
         review['_id'] = review['id']
         del review['id']

@@ -1,8 +1,8 @@
 import gevent
 import requests
+import pymongo 
 import json
 import io
-import pymongo 
 from contextlib import suppress
 
 DEBUG = False
@@ -50,7 +50,7 @@ def get_listings(location, _offset = 0):
     except requests.exceptions.RequestException:
         print('HTTP Request failed')
 
-def get_all_listings(location):
+def get_all_listings(location, networking_pool):
     resp = get_listings(location)
     metadata = resp['metadata']
     metadata['location'] = location
@@ -69,9 +69,9 @@ def get_all_listings(location):
         except exceptions.KeyError:
             print('Error offset: ', offset)
         listings.extend(new_listings)
-    threads = [gevent.spawn(get_listings_with_current_offset, offset)
+    threads = [networking_pool.spawn(get_listings_with_current_offset, offset)
                for offset in range(50, listings_count -50, 50)]
-    gevent.joinall(threads)
+    networking_pool.join()
     def syncID(listing):
         listing['_id'] = listing['id']
         del listing['id']
@@ -79,11 +79,11 @@ def get_all_listings(location):
     listings = list(map(syncID,listings))
     return listings
 
-def insert_listings(location, db):
+def insert_listings(location, db, networking_pool):
     global DB
     DB = db
     print("--- Start getting listings at %s ---" % location)
-    data = get_all_listings(location)
+    data = get_all_listings(location, networking_pool)
     collection = db.listings
     with suppress(Exception):
         collection.insert_many(data, ordered=False)
