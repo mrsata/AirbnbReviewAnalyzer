@@ -17,9 +17,9 @@ networking_pool = gevent.pool.Pool(size=3)
 def init_database():
 
     print("--- Start getting listings ---")
-    #listings_threads = [gevent.spawn(l.insert_listings, sample, DB, networking_pool) 
-    #                    for sample in SAMPLES]
-    #gevent.joinall(listings_threads)
+    listings_threads = [gevent.spawn(l.insert_listings, sample, DB, networking_pool) 
+                       for sample in SAMPLES]
+    gevent.joinall(listings_threads)
 
     print("--- Get all listings: %s seconds ---" 
           % (time.time() - start_time))
