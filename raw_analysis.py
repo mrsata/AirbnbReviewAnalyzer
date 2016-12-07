@@ -16,15 +16,18 @@ def analysis(reviews_collection_text):
 	data_lower = data.lower()
 	tokens_with_punc = word_tokenize(data_lower)
 	tokens = RegexpTokenizer(r'\w+').tokenize(data_lower)
-	print(FreqDist(tokens_with_punc).most_common(15))
-	print(FreqDist(tokens).most_common(15))
+	print("--- Most frequent tokens ---\n",
+		FreqDist(tokens_with_punc).most_common(15))
+	print("--- Tokens without punctuation ---\n",
+		FreqDist(tokens).most_common(15))
 	stop = set(stopwords.words('english'))
 	words = [word for word in tokens if word not in stop]
-	print(FreqDist(words).most_common(15))
+	print("--- Most frequent words ---\n", FreqDist(words).most_common(15))
 	tagged = pos_tag(words)
-	nouns = [word for word, pos in tagged
-		if (pos == 'NN' or pos == 'NNP' or pos == 'NNS' or pos == 'NNPS')]
-	print(FreqDist(nouns).most_common(15))
+	nouns = [word for word, pos in tagged if (pos == 'NN')]
+	print("--- Most frequent nouns ---\n", FreqDist(nouns).most_common(15))
+	adjts = [word for word, pos in tagged if (pos == 'JJ')]
+	print("--- Most frequent adjective ---\n", FreqDist(adjts).most_common(15))
 
 
 

@@ -3,11 +3,10 @@ import pymongo, io, re
 SAMPLES = ['hollywood', 'venice', 'oakland', 'manhattan', 'brooklyn']
 
 def reviews_to_text(reviews_collection, db):
-
 	reviews_cursor = db['reviews_' + reviews_collection].find()
 	reviews = [review for review in reviews_cursor]
 	comments = [review["comments"] for review in reviews]
-	comments = [comment for comment in comments 
+	comments = [comment for comment in comments
 				if 'This is an automated posting.' not in comment]
 	comments = [re.sub('\s+', ' ', comment) for comment in comments]
 
@@ -20,6 +19,7 @@ def main():
 	db = client.ara
 	for reviews_collection in SAMPLES:
 		reviews_to_text(reviews_collection, db)
+		reviews_to_text(reviews_collection + '_big', db)
 
 if __name__ == '__main__':
 	main()
